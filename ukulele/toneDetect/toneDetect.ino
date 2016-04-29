@@ -13,18 +13,14 @@
 // These values can be changed to alter the behavior of the spectrum display.
 ////////////////////////////////////////////////////////////////////////////////
 
-int SAMPLE_RATE_HZ = 9000;             // Sample rate of the audio in hertz.
-const int NOTES[] = {
+int detectedNoteIndex = -1;            // The index of the note we currently here
+int SAMPLE_RATE_HZ = 1200;             // Sample rate of the audio in hertz.
+const int NOTE[] = {
   392 , 262, 330, 440
 };
-const int TONE_LOWS[] = {              // Lower bound (in hz) of each tone in the input sequence.
-  1723, 1934, 1512, 738, 1125
-};
-const int TONE_HIGHS[] = {             // Upper bound (in hz) of each tone in the input sequence.
-  1758, 1969, 1546, 773, 1160
-};
-int TONE_ERROR_MARGIN_HZ = 50;         // Allowed fudge factor above and below the bounds for each tone input.
-int TONE_WINDOW_MS = 4000;             // Maximum amount of milliseconds allowed to enter the full sequence.
+int idunno = 0;
+const int NOTE_COUNT = 4;
+int TONE_ERROR_MARGIN_HZ = 20;         // Allowed fudge factor above and below the bounds for each tone input.
 float TONE_THRESHOLD_DB = 10.0;        // Threshold (in decibels) each tone must be above other frequencies to count.
 const int FFT_SIZE = 256;              // Size of the FFT.  Realistically can only be at most 256 
                                        // without running out of memory for buffers and other state.
@@ -35,8 +31,7 @@ const int POWER_LED_PIN = 13;          // Output pin for power LED (pin 13 to us
 const int NEO_PIXEL_PIN = 3;           // Output pin for neo pixels.
 const int NEO_PIXEL_COUNT = 10;         // Number of neo pixels.  You should be able to increase this without
                                        // any other changes to the program.
-const int MAX_CHARS = 65;              // Max size of the input command buffer
-
+const int GAIN_PIN = 16;
 
 ////////////////////////////////////////////////////////////////////////////////
 // INTERNAL STATE
@@ -48,9 +43,6 @@ float samples[FFT_SIZE*2];
 float magnitudes[FFT_SIZE];
 int sampleCounter = 0;
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NEO_PIXEL_COUNT, NEO_PIXEL_PIN, NEO_GRB + NEO_KHZ800);
-char commandBuffer[MAX_CHARS];
-int tonePosition = 0;
-unsigned long toneStart = 0;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,9 +50,6 @@ unsigned long toneStart = 0;
 ////////////////////////////////////////////////////////////////////////////////
 
 void setup() {
-  // Set up serial port.
-  Serial.begin(38400);
-  
   // Set up ADC and audio input.
   pinMode(AUDIO_INPUT_PIN, INPUT);
   analogReadResolution(ANALOG_READ_RESOLUTION);
@@ -70,12 +59,13 @@ void setup() {
   pinMode(POWER_LED_PIN, OUTPUT);
   digitalWrite(POWER_LED_PIN, HIGH);
   
+  // Set the gain
+  pinMode(GAIN_PIN, OUTPUT);
+  digitalWrite(GAIN_PIN, HIGH);
+  
   // Initialize neo pixel library and turn off the LEDs
   pixels.begin();
   pixels.show(); 
-  
-  // Clear the input command buffer
-  memset(commandBuffer, 0, sizeof(commandBuffer));
   
   // Begin sampling audio
   samplingBegin();
@@ -97,9 +87,7 @@ void loop() {
     // Restart audio sampling.
     samplingBegin();
   }
-    
-  // Parse any pending commands.
-  parserLoop();
+   
 }
 
 
@@ -142,52 +130,82 @@ float intensityDb(float intensity) {
 ///////////////////////////////////////////////////////////////////////////////
 
 void toneLoop() {
-  // Calculate the low and high frequency bins for the currently expected tone.
-  int lowBin = frequencyToBin(TONE_LOWS[tonePosition] - TONE_ERROR_MARGIN_HZ);
-  int highBin = frequencyToBin(TONE_HIGHS[tonePosition] + TONE_ERROR_MARGIN_HZ);
-  // Get the average intensity of frequencies inside and outside the tone window.
-  float window, other;
-  windowMean(magnitudes, lowBin, highBin, &window, &other);
-  window = intensityDb(window);
-  other = intensityDb(other);
-  // Check if tone intensity is above the threshold to detect a step in the sequence.
-  if ((window - other) >= TONE_THRESHOLD_DB) {
-    // Start timing the window if this is the first in the sequence.
-    unsigned long time = millis();
-    if (tonePosition == 0) {
-      toneStart = time;
-    }
-    // Increment key position if still within the window of key input time.
-    if (toneStart + TONE_WINDOW_MS > time) {
-      tonePosition += 1;
-    }
-    else {
-      // Outside the window of key input time, reset back to the beginning key.
-      tonePosition = 0;
+    int pause = 10;
+
+  // find the largest magnitude
+  float largestMagnitude = -1000;
+  int largestMagnitudeIndex = -1;
+  for (int i = 1; i < 256; ++i) {
+    if (magnitudes[i] > largestMagnitude) {
+      largestMagnitude = magnitudes[i];
+      largestMagnitudeIndex = i;
     }
   }
-  // Check if the entire sequence was passed through.
-  if (tonePosition >= sizeof(TONE_LOWS)/sizeof(int)) {
-    toneDetected();
-    tonePosition = 0;
+  //TODO: instead of setting a color here, send this to the trinket
+  idunno++;
+  for (int j = 0; j < NEO_PIXEL_COUNT; ++j) {
+    pixels.setPixelColor(j, Wheel(largestMagnitudeIndex));
   }
+  pixels.show();
 }
 
 void toneDetected() {
-  // Flash the LEDs four times.
-  int pause = 250;
-  for (int i = 0; i < 4; ++i) {
-    for (int j = 0; j < NEO_PIXEL_COUNT; ++j) {
-      pixels.setPixelColor(j, pixels.Color(255, 0, 0));
-    }
-    pixels.show();
-    delay(pause);
-    for (int j = 0; j < NEO_PIXEL_COUNT; ++j) {
-      pixels.setPixelColor(j, 0);
-    }
-    pixels.show();
-    delay(pause);
+  int pause = 100;
+  int r = 0;
+  int g = 0;
+  int b = 0;
+  switch (detectedNoteIndex) {
+    case 0:
+      r = 255;
+      g = 0;
+      b = 0;
+      break;
+    case 1:
+      r = 0;
+      g = 255;
+      b = 0;
+      break;
+    case 2:
+      r = 0;
+      g = 0;
+      b = 255;
+      break;
+    case 3:
+      r = 255;
+      g = 0;
+      b = 255;
+      break;
+    default:
+      r = 0;
+      g = 0;
+      b = 0;
   }
+  // blink the color
+  for (int j = 0; j < NEO_PIXEL_COUNT; ++j) {
+    pixels.setPixelColor(j, pixels.Color(r, g, b));
+  }
+  pixels.show();
+  delay(pause);
+  for (int j = 0; j < NEO_PIXEL_COUNT; ++j) {
+    pixels.setPixelColor(j, 0);
+  }
+  pixels.show();
+  delay(pause);
+}
+
+// Input a value 0 to 255 to get a color value.
+// The colours are a transition r - g - b - back to r.
+uint32_t Wheel(byte WheelPos) {
+  WheelPos = 255 - WheelPos;
+  if(WheelPos < 85) {
+    return pixels.Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  }
+  if(WheelPos < 170) {
+    WheelPos -= 85;
+    return pixels.Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+  WheelPos -= 170;
+  return pixels.Color(WheelPos * 3, 255 - WheelPos * 3, 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,66 +235,3 @@ boolean samplingIsDone() {
   return sampleCounter >= FFT_SIZE*2;
 }
 
-
-////////////////////////////////////////////////////////////////////////////////
-// COMMAND PARSING FUNCTIONS
-// These functions allow parsing simple commands input on the serial port.
-// Commands allow reading and writing variables that control the device.
-//
-// All commands must end with a semicolon character.
-// 
-// Example commands are:
-// GET SAMPLE_RATE_HZ;
-// - Get the sample rate of the device.
-// SET SAMPLE_RATE_HZ 400;
-// - Set the sample rate of the device to 400 hertz.
-// 
-////////////////////////////////////////////////////////////////////////////////
-
-void parserLoop() {
-  // Process any incoming characters from the serial port
-  while (Serial.available() > 0) {
-    char c = Serial.read();
-    // Add any characters that aren't the end of a command (semicolon) to the input buffer.
-    if (c != ';') {
-      c = toupper(c);
-      strncat(commandBuffer, &c, 1);
-    }
-    else
-    {
-      // Parse the command because an end of command token was encountered.
-      parseCommand(commandBuffer);
-      // Clear the input buffer
-      memset(commandBuffer, 0, sizeof(commandBuffer));
-    }
-  }
-}
-
-// Macro used in parseCommand function to simplify parsing get and set commands for a variable
-#define GET_AND_SET(variableName) \
-  else if (strcmp(command, "GET " #variableName) == 0) { \
-    Serial.println(variableName); \
-  } \
-  else if (strstr(command, "SET " #variableName " ") != NULL) { \
-    variableName = (typeof(variableName)) atof(command+(sizeof("SET " #variableName " ")-1)); \
-  }
-
-void parseCommand(char* command) {
-  if (strcmp(command, "GET MAGNITUDES") == 0) {
-    for (int i = 0; i < FFT_SIZE; ++i) {
-      Serial.println(magnitudes[i]);
-    }
-  }
-  else if (strcmp(command, "GET SAMPLES") == 0) {
-    for (int i = 0; i < FFT_SIZE*2; i+=2) {
-      Serial.println(samples[i]);
-    }
-  }
-  else if (strcmp(command, "GET FFT_SIZE") == 0) {
-    Serial.println(FFT_SIZE);
-  }
-  GET_AND_SET(SAMPLE_RATE_HZ)
-  GET_AND_SET(TONE_ERROR_MARGIN_HZ)
-  GET_AND_SET(TONE_WINDOW_MS)
-  GET_AND_SET(TONE_THRESHOLD_DB)
-}
