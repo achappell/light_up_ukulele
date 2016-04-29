@@ -32,7 +32,12 @@ const int NEO_PIXEL_PIN = 3;           // Output pin for neo pixels.
 const int NEO_PIXEL_COUNT = 10;         // Number of neo pixels.  You should be able to increase this without
                                        // any other changes to the program.
 const int GAIN_PIN = 16;
-const int OUT_PIN = 20;
+const int OUT_PIN_1 = 23;
+const int OUT_PIN_2 = 22;
+const int OUT_PIN_3 = 21;
+const int OUT_PIN_4 = 20;
+const int OUT_PIN_5 = 19;
+const int OUT_PIN_6 = 18;
 ////////////////////////////////////////////////////////////////////////////////
 // INTERNAL STATE
 // These shouldn't be modified unless you know what you're doing.
@@ -64,7 +69,12 @@ void setup() {
   digitalWrite(GAIN_PIN, HIGH);
   
   // CHRIS WAS HERE
-  // pinMode(OUT_PIN, OUTPUT);
+  pinMode(OUT_PIN_1, OUTPUT);
+  pinMode(OUT_PIN_2, OUTPUT);
+  pinMode(OUT_PIN_3, OUTPUT);
+  pinMode(OUT_PIN_4, OUTPUT);
+  pinMode(OUT_PIN_5, OUTPUT);
+  pinMode(OUT_PIN_6, OUTPUT);
   
   // Initialize neo pixel library and turn off the LEDs
   pixels.begin();
@@ -146,6 +156,7 @@ void toneLoop() {
   }
   //TODONE: instead of setting a color here, send this to the trinket
   idunno=largestMagnitudeIndex==-1?0:(largestMagnitudeIndex-49)*256/144;
+  writePins(idunno/4\);
   //analogWrite(OUT_PIN, 0);
   
   for (int j = 0; j < NEO_PIXEL_COUNT; ++j) {
@@ -153,6 +164,20 @@ void toneLoop() {
   }
   pixels.show();
   
+}
+
+void writePins(int value) {
+  digitalWrite(OUT_PIN_1, value%2?HIGH:LOW);
+  value>>=1;
+  digitalWrite(OUT_PIN_2, value%2?HIGH:LOW);
+  value>>=1;
+  digitalWrite(OUT_PIN_3, value%2?HIGH:LOW);
+  value>>=1;
+  digitalWrite(OUT_PIN_4, value%2?HIGH:LOW);
+  value>>=1;
+  digitalWrite(OUT_PIN_5, value%2?HIGH:LOW);
+  value>>=1;
+  digitalWrite(OUT_PIN_6, value%2?HIGH:LOW);
 }
 
 void toneDetected() {
