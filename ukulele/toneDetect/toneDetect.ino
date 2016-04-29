@@ -32,7 +32,7 @@ const int NEO_PIXEL_PIN = 3;           // Output pin for neo pixels.
 const int NEO_PIXEL_COUNT = 10;         // Number of neo pixels.  You should be able to increase this without
                                        // any other changes to the program.
 const int GAIN_PIN = 16;
-
+const int OUT_PIN = 20;
 ////////////////////////////////////////////////////////////////////////////////
 // INTERNAL STATE
 // These shouldn't be modified unless you know what you're doing.
@@ -62,6 +62,9 @@ void setup() {
   // Set the gain
   pinMode(GAIN_PIN, OUTPUT);
   digitalWrite(GAIN_PIN, HIGH);
+  
+  // CHRIS WAS HERE
+  // pinMode(OUT_PIN, OUTPUT);
   
   // Initialize neo pixel library and turn off the LEDs
   pixels.begin();
@@ -130,23 +133,26 @@ float intensityDb(float intensity) {
 ///////////////////////////////////////////////////////////////////////////////
 
 void toneLoop() {
-    int pause = 10;
+    int pause = 100;
 
   // find the largest magnitude
   float largestMagnitude = -1000;
   int largestMagnitudeIndex = -1;
-  for (int i = 1; i < 256; ++i) {
+  for (int i = 50; i < 192; ++i) {
     if (magnitudes[i] > largestMagnitude) {
       largestMagnitude = magnitudes[i];
       largestMagnitudeIndex = i;
     }
   }
-  //TODO: instead of setting a color here, send this to the trinket
-  idunno++;
+  //TODONE: instead of setting a color here, send this to the trinket
+  idunno=largestMagnitudeIndex==-1?0:(largestMagnitudeIndex-49)*256/144;
+  //analogWrite(OUT_PIN, 0);
+  
   for (int j = 0; j < NEO_PIXEL_COUNT; ++j) {
-    pixels.setPixelColor(j, Wheel(largestMagnitudeIndex));
+    pixels.setPixelColor(j, Wheel(idunno));
   }
   pixels.show();
+  
 }
 
 void toneDetected() {
