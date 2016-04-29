@@ -13,6 +13,15 @@
 #define ONOFFBUTTONPIN 11
 #define COLORLEDPIN     9
 #define COLORBUTTONPIN  4
+#define FFTLEDPIN       6
+#define FFTBUTTONPIN    5
+
+#define INPUTPIN0      14
+#define INPUTPIN1      15
+#define INPUTPIN2      16
+#define INPUTPIN3      17
+#define INPUTPIN4      18
+#define INPUTPIN5      19
 
 // How many NeoPixels are attached to the Arduino?
 #define NUMPIXELS      60
@@ -28,6 +37,8 @@ int currentMode = 0;
 int previousColorButtonState = HIGH;
 uint32_t rainbowJ = 0;
 int isRainbowing = 0;
+int previousFFTButtonState = HIGH;
+int currentFFTLEDState = LOW;
 
 void setup() {
   // This is for Trinket 5V 16MHz, you can remove these three lines if you are not using a Trinket
@@ -40,11 +51,64 @@ void setup() {
   pinMode(ONOFFBUTTONPIN, INPUT);
   pinMode(COLORLEDPIN, OUTPUT);
   pinMode(COLORBUTTONPIN, INPUT);
+  pinMode(FFTLEDPIN, OUTPUT);
+  pinMode(FFTBUTTONPIN, INPUT);
+  pinMode(INPUTPIN0, INPUT);
+  pinMode(INPUTPIN1, INPUT);
+  pinMode(INPUTPIN2, INPUT);
+  pinMode(INPUTPIN3, INPUT);
+  pinMode(INPUTPIN4, INPUT);
+  pinMode(INPUTPIN5, INPUT);
 
   pixels.begin(); // This initializes the NeoPixel library.
 }
 
+int inputNumber(){
+  int inputPin0Value = digitalRead(INPUTPIN0);
+  int inputPin1Value = digitalRead(INPUTPIN1);
+  int inputPin2Value = digitalRead(INPUTPIN2);
+  int inputPin3Value = digitalRead(INPUTPIN3);
+  int inputPin4Value = digitalRead(INPUTPIN4);
+  int inputPin5Value = digitalRead(INPUTPIN5);
+  
+  return (inputPin0Value + inputPin1Value*2 + inputPin2Value*4 + inputPin3Value*8 + inputPin4Value*16 + inputPin5Value*32)*4;
+}
+
 void loop() {
+
+  int fftButtonState = digitalRead(FFTBUTTONPIN);
+  if (fftButtonState == LOW && previousFFTButtonState != fftButtonState) {
+    if (currentFFTLEDState == LOW) {
+      digitalWrite(FFTLEDPIN, HIGH);
+      currentFFTLEDState = HIGH;
+      
+    } else {
+      digitalWrite(FFTLEDPIN, LOW);
+      currentFFTLEDState = LOW;
+    }
+  }
+  previousFFTButtonState = fftButtonState;
+
+  if (currentFFTLEDState == HIGH) {
+    for(int i=0;i<NUMPIXELS;i++){
+        // pixels.Color takes RGB values, from 0,0,0 up to 255,255,255
+        pixels.setPixelColor(i, Wheel(inputNumber())); // Moderately bright green color
+    }
+    pixels.show();
+  } else {
+    int colorButtonState = digitalRead(COLORBUTTONPIN);
+
+  if (colorButtonState == LOW && previousColorButtonState != colorButtonState) {
+    colorForCurrentState();
+    currentMode++;
+    currentMode = currentMode%6;
+    }
+  previousColorButtonState = colorButtonState;
+
+  if (isRainbowing == 1) {
+    rainbowCycle();
+  }
+  }
 
   int onOffButtonState;
 
@@ -54,7 +118,9 @@ void loop() {
     if (onOffButtonState == HIGH) {
       digitalWrite(ONOFFLEDPIN, LOW);
       digitalWrite(COLORLEDPIN, LOW);
+      digitalWrite(FFTLEDPIN, LOW);
       isRainbowing = 0;
+      currentFFTLEDState = LOW;
     
       for(int i=NUMPIXELS-1;i>=0;i--){
     
@@ -77,19 +143,6 @@ void loop() {
         delay(delayval*2);
       }   
     }
-  }
-  
-  int colorButtonState = digitalRead(COLORBUTTONPIN);
-
-  if (colorButtonState == LOW && previousColorButtonState != colorButtonState) {
-    colorForCurrentState();
-    currentMode++;
-    currentMode = currentMode%6;
-    }
-  previousColorButtonState = colorButtonState;
-
-  if (isRainbowing == 1) {
-    rainbowCycle();
   }
 
   delay(delayval);
