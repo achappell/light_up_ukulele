@@ -78,14 +78,14 @@ void loop() {
       }   
     }
   }
-
+  
   int colorButtonState = digitalRead(COLORBUTTONPIN);
 
   if (colorButtonState == LOW && previousColorButtonState != colorButtonState) {
     colorForCurrentState();
     currentMode++;
     currentMode = currentMode%6;
-  }
+    }
   previousColorButtonState = colorButtonState;
 
   if (isRainbowing == 1) {
@@ -119,18 +119,6 @@ void rainbowCycle() {
   }
   pixels.show();
   rainbowJ++;
-}
-
-void rainbow() {
-  uint16_t i, j;
-
-  for(j=0; j<256; j++) {
-    for(i=0; i<pixels.numPixels(); i++) {
-      pixels.setPixelColor(i, Wheel((i+j) & 255));
-    }
-    pixels.show();
-    delay(5);
-  }
 }
 
 // Input a value 0 to 255 to get a color value.
